@@ -1,6 +1,7 @@
 using CommonServiceLocator;
-using Emerald.Helpers;
 using Emerald.Helpers.Enums;
+using Emerald.Helpers.Markdown;
+using Markdig;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -18,12 +19,32 @@ public partial class MessageBox : ContentDialog
 {
     public MessageBoxResults Result { get; set; } = MessageBoxResults.Cancel;
 
+    public async Task NavigateWebview(string message)
+    {
+            var scrollview = new ScrollViewer
+            {
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Visible,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Padding = new Thickness(6)
+            };
+        try
+        {
+            var rtb = new RichTextBlock();
+            await new MarkdownConverter().SetMarkdownTextAsync(rtb, message);
+            scrollview.Content = rtb;
+        }
+        catch (Exception ex)
+        {
+            this.Log().LogError(ex,"Failed to set messagebox content markdown");
+             scrollview.Content = new TextBlock { Text = message };
+        }
+            Content = scrollview;
+    }
+
     public MessageBox(string title, string caption, MessageBoxButtons buttons, string cusbtn1 = null, string cusbtn2 = null)
     {
         Style = Application.Current.Resources["DefaultContentDialogStyle"] as Style;
         Title = title;
-        Content = new TextBlock { Text = caption };
-
         if (buttons == MessageBoxButtons.Ok)
         {
             PrimaryButtonText = "";
@@ -125,27 +146,18 @@ public partial class MessageBox : ContentDialog
             Result = MessageBoxResults.CustomResult2;
         }
     }
-
     public static async Task<MessageBoxResults> Show(string title, string caption, MessageBoxButtons buttons, string customResult1 = null, string customResult2 = null, bool waitUntilOpens = true)
     {
         var theme = ServiceLocator.IsLocationProviderSet ? 
-
-/* Unmerged change from project 'Emerald (net8.0-windows10.0.22621)'
-Before:
-            (ElementTheme)ServiceLocator.Current.GetInstance<Settings.SettingsSystem>().Settings.App.Appearance.Theme :
-            ElementTheme.Default;
-After:
-            (ElementTheme)ServiceLocator.Current.GetInstance<SettingsSystem>().Settings.App.Appearance.Theme :
-            ElementTheme.Default;
-*/
             (ElementTheme)ServiceLocator.Current.GetInstance<Services.SettingsService>().Settings.App.Appearance.Theme :
             ElementTheme.Default;
         var d = new MessageBox(title, caption, buttons, customResult1, customResult2)
         {
-            XamlRoot = App.Current.MainWindow.Content.XamlRoot,
+            XamlRoot = App.Current?.MainWindow?.Content?.XamlRoot,
             RequestedTheme = theme
         };
 
+        await d.NavigateWebview(caption);
         if (waitUntilOpens)
         {
             bool notOpen = true;
@@ -180,15 +192,6 @@ After:
     public static async Task<MessageBoxResults> Show(string text)
     {
         var theme = ServiceLocator.IsLocationProviderSet ?
-
-/* Unmerged change from project 'Emerald (net8.0-windows10.0.22621)'
-Before:
-            (ElementTheme)ServiceLocator.Current.GetInstance<Settings.SettingsSystem>().Settings.App.Appearance.Theme :
-            ElementTheme.Default;
-After:
-            (ElementTheme)ServiceLocator.Current.GetInstance<SettingsSystem>().Settings.App.Appearance.Theme :
-            ElementTheme.Default;
-*/
             (ElementTheme)ServiceLocator.Current.GetInstance<Services.SettingsService>().Settings.App.Appearance.Theme :
             ElementTheme.Default;
         var d = new MessageBox("Information".Localize(), text, MessageBoxButtons.Ok)
@@ -197,6 +200,7 @@ After:
             RequestedTheme = theme
         };
 
+        await d.NavigateWebview(text);
         try
         {
             await d.ShowAsync();
